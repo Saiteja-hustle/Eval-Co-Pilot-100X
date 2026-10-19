@@ -27,7 +27,7 @@ run_case(
     app_address=APP_ADDRESS,
     question_field=QUESTION_FIELD,
     answer_field=ANSWER_FIELD,
-    good_answer_includes="3, 12",
+    good_answer_includes="12",
     global_wrong_text="",
 )
 

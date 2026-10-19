@@ -15,6 +15,9 @@ Rule: every choice goes here. "Tj decided" = Tj chose it. "AI decided" = Claude 
 - Sketches stay Tj's own; Claude Code builds from them, Tj verifies each stage.
 - Download report is cut first if behind.
 
+## Tj decided: Stage 1
+- Pratik's app gives different wording on repeat runs (the 3 m2 example sometimes appears, sometimes not), so includes text should use the stable fact (12), not a detail that sometimes appears. Run 1 vs Run 2 can flip from randomness alone. Known limit.
+
 ## AI decided (Tj to review)
 - App error, timeout or empty answer = Fail with reason, then continue (Tj agreed on 19 Oct 4:20 PM).
 - Proposed: timeout 20 seconds (open).
