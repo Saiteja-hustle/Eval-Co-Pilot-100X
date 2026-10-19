@@ -79,6 +79,20 @@ Rule: every choice goes here. "Tj decided" = Tj chose it. "AI decided" = Claude 
 - No database, no login, no new dependencies — confirmed `requirements.txt` needs no changes since this stage adds no server-side code beyond one static-file route already covered by FastAPI.
 - Verified manually: started the app locally with `uvicorn`, confirmed `GET /` returns the page (200) and `GET /api/hello` still works; used a headless-browser script (Playwright, dev-only, not added as a dependency) to click through add-row, delete-row, Run, and click-a-report-row, confirming the status message, the "N of N run" / "N of N passed" text, and the full-answer panel appearing after a click — then stopped the test browser and local server.
 
+## AI decided — Stage 4 restyle (styling only, no functionality change)
+- Scope: `index.html` only — CSS and minor wrapper markup. `main.py`, `checks.py`, `requirements.txt`, `vercel.json`, `PRD.md.docx` untouched. The `<script>` block is byte-for-byte unchanged; no element id, class used by JS, event listener, API call, field name, or visible label/helper/button/table-header/message text was touched.
+- Added Google Fonts `Inter` via `<link>` tags in `<head>`, with system sans-serif fallback in the `font-family` stack.
+- Replaced the old hard-coded colors with CSS custom properties on `:root` matching the brand palette given: `--color-primary #3B3F9E`, `--color-primary-tint #EEF0FF`, `--color-pass #1F8A4C`, `--color-fail #C73A3A`, `--color-text #1B1D2A`, `--color-text-muted #6B6F85`, plus a light grey-blue `--color-page-bg #F4F6FB` for the page background (white cards sit on top via existing `.card` class, unchanged selector).
+- Card radius set to 12px, input/button radius to 8px, per the spec; added a subtle box-shadow on `.card`.
+- Inputs: added a visible focus ring (indigo, `box-shadow`) and muted placeholder color; no change to input types, ids, names, or default values.
+- Replaced `<h1>Eval Co-Pilot</h1>` with a `<header class="site-header">` containing the product name "Eval Co-pilot" and the one-line description "Test someone else's AI app with your own questions." — this is new header content called for explicitly in the task's "Look and feel" section, not one of the listed do-not-touch texts (labels, helper lines, buttons, table headers, messages), all of which are unchanged.
+- `.pass`/`.fail` are now rendered as small colored pills (`border-radius: 999px`, tinted background, colored text) — pure CSS on the same class names the JS already sets via `className`/template string; the JS still only ever writes `class="pass"` or `class="fail"` on the `<td>`, nothing else changed there.
+- Table: tinted header row (`--color-primary-tint`), lighter row-divider color, hover state on `.report-row` using the same tint — same `id`s/`class`es (`reportTable`, `reportBody`, `report-row`) the JS already uses.
+- Added one new wrapper, `<div class="table-scroll">`, around the existing `<table id="reportTable">` only, to allow horizontal scrolling on narrow screens; the table itself, its id, and its children are untouched.
+- Added a `@media (max-width: 600px)` block: the setup grid collapses to one column and card/button padding shrinks; no layout-breaking changes to element structure.
+- Removed the now-orphaned `h1 { ... }` CSS rule since the `<h1>` element itself was replaced by the new header (dead CSS otherwise).
+- Verified: div open/close tag counts balance (17/17), and both `main.py` and `checks.py` still `py_compile` cleanly (confirming no stray edits leaked into those files).
+
 ## Open
 - Check-in 5 "Stored" Green criteria not yet read.
 - Third no-go line to be written by Tj.

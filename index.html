@@ -4,95 +4,175 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Eval Co-Pilot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root { font-family: Arial, Helvetica, sans-serif; }
+  :root {
+    --color-primary: #3B3F9E;
+    --color-primary-tint: #EEF0FF;
+    --color-pass: #1F8A4C;
+    --color-fail: #C73A3A;
+    --color-text: #1B1D2A;
+    --color-text-muted: #6B6F85;
+    --color-page-bg: #F4F6FB;
+    --color-border: #E1E3F0;
+    --radius-card: 12px;
+    --radius-control: 8px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
   body {
     margin: 0;
-    padding: 24px;
-    background: #f5f5f7;
-    color: #1d1d1f;
+    padding: 24px 16px 48px;
+    background: var(--color-page-bg);
+    color: var(--color-text);
   }
-  .wrap { max-width: 900px; margin: 0 auto; }
-  h1 { font-size: 20px; margin: 0 0 16px; }
+  .page { max-width: 880px; margin: 0 auto; }
+  .site-header { text-align: center; margin-bottom: 28px; }
+  .brand {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--color-primary);
+    margin: 0 0 6px;
+  }
+  .tagline {
+    font-size: 14px;
+    color: var(--color-text-muted);
+    margin: 0;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; }
   .card {
     background: #fff;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    padding: 16px 20px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    box-shadow: 0 1px 2px rgba(27, 29, 42, 0.04), 0 8px 24px rgba(27, 29, 42, 0.05);
+    padding: 20px 24px;
     margin-bottom: 20px;
   }
-  label { display: block; font-size: 13px; font-weight: bold; margin: 10px 0 4px; }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 10px 0 6px; color: var(--color-text); }
   input[type=text] {
     width: 100%;
     box-sizing: border-box;
-    padding: 8px;
+    padding: 10px 12px;
     font-size: 14px;
-    border: 1px solid #bbb;
-    border-radius: 4px;
+    font-family: inherit;
+    color: var(--color-text);
+    border: 1px solid #CBCEDE;
+    border-radius: var(--radius-control);
+    background: #fff;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  input[type=text]::placeholder { color: #9A9DB3; }
+  input[type=text]:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(59, 63, 158, 0.18);
   }
   .setup-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0 20px;
+    gap: 4px 20px;
   }
   .row {
-    border: 1px solid #e3e3e6;
-    border-radius: 6px;
-    padding: 12px;
-    margin-bottom: 10px;
+    border: 1px solid var(--color-border);
+    background: var(--color-primary-tint);
+    border-radius: var(--radius-control);
+    padding: 14px 16px;
+    margin-bottom: 12px;
     position: relative;
   }
-  .row .helper { color: #888; font-size: 12px; margin-top: 4px; }
+  .row .helper { color: var(--color-text-muted); font-size: 12px; margin-top: 4px; }
   .row .delete-btn {
     position: absolute;
-    top: 8px;
-    right: 8px;
+    top: 10px;
+    right: 10px;
     background: none;
     border: none;
-    color: #c00;
+    color: var(--color-fail);
     cursor: pointer;
     font-size: 13px;
+    font-weight: 500;
+    padding: 4px 6px;
+    border-radius: 6px;
   }
+  .row .delete-btn:hover { background: rgba(199, 58, 58, 0.1); }
   button {
     font-size: 14px;
-    padding: 8px 16px;
-    border-radius: 6px;
-    border: 1px solid #bbb;
+    font-family: inherit;
+    font-weight: 600;
+    padding: 10px 18px;
+    border-radius: var(--radius-control);
+    border: 1px solid #CBCEDE;
     background: #fff;
+    color: var(--color-text);
     cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
   }
+  button:hover { background: #F4F5FC; }
   button.primary {
-    background: #0a66ff;
+    background: var(--color-primary);
     color: #fff;
-    border-color: #0a66ff;
-    font-weight: bold;
+    border-color: var(--color-primary);
+    font-weight: 700;
+    font-size: 16px;
+    padding: 14px 28px;
+    width: 100%;
+    box-shadow: 0 4px 12px rgba(59, 63, 158, 0.25);
   }
+  button.primary:hover:not(:disabled) { background: #32366E; border-color: #32366E; }
   button:disabled { opacity: 0.6; cursor: default; }
-  .note { color: #666; font-size: 13px; margin-top: 8px; }
-  .status { margin: 12px 0; font-weight: bold; }
-  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-  th, td { text-align: left; padding: 8px; border-bottom: 1px solid #eee; font-size: 14px; }
-  tr.report-row { cursor: pointer; }
-  tr.report-row:hover { background: #f0f4ff; }
-  .pass { color: #0a8a3a; font-weight: bold; }
-  .fail { color: #c00; font-weight: bold; }
+  button.primary:disabled { box-shadow: none; }
+  .note { color: var(--color-text-muted); font-size: 13px; margin-top: 10px; }
+  .status { margin: 16px 0; font-weight: 600; text-align: center; color: var(--color-text-muted); }
+  .table-scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; min-width: 560px; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--color-border); font-size: 14px; }
+  thead th {
+    background: var(--color-primary-tint);
+    color: var(--color-text);
+    font-weight: 600;
+    font-size: 13px;
+  }
+  thead th:first-child { border-top-left-radius: 8px; }
+  thead th:last-child { border-top-right-radius: 8px; }
+  tr.report-row { cursor: pointer; transition: background-color 0.1s ease; }
+  tr.report-row:hover { background: var(--color-primary-tint); }
+  .pass, .fail {
+    display: inline-block;
+    font-weight: 600;
+    font-size: 12px;
+    padding: 3px 10px;
+    border-radius: 999px;
+  }
+  .pass { color: var(--color-pass); background: rgba(31, 138, 76, 0.12); }
+  .fail { color: var(--color-fail); background: rgba(199, 58, 58, 0.12); }
   #fullAnswer {
     margin-top: 12px;
-    background: #fafafa;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    padding: 12px;
+    background: var(--color-primary-tint);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    padding: 14px;
     font-size: 13px;
     white-space: pre-wrap;
     word-break: break-word;
   }
-  #score { font-size: 16px; margin-top: 10px; }
+  #score { font-size: 16px; font-weight: 600; margin-top: 14px; }
+
+  @media (max-width: 600px) {
+    .setup-grid { grid-template-columns: 1fr; }
+    .card { padding: 16px; }
+    button.primary { font-size: 15px; padding: 12px 20px; }
+  }
 </style>
 </head>
 <body>
+<div class="page">
+<header class="site-header">
+  <p class="brand">Eval Co-pilot</p>
+  <p class="tagline">Test someone else's AI app with your own questions.</p>
+</header>
 <div class="wrap">
-  <h1>Eval Co-Pilot</h1>
-
   <div class="card">
     <div class="setup-grid">
       <div>
@@ -124,6 +204,7 @@
   <div class="status" id="statusMsg"></div>
 
   <div class="card" id="reportCard" style="display:none;">
+    <div class="table-scroll">
     <table id="reportTable">
       <thead>
         <tr>
@@ -135,9 +216,11 @@
       </thead>
       <tbody id="reportBody"></tbody>
     </table>
+    </div>
     <div id="fullAnswer" style="display:none;"></div>
     <div id="score"></div>
   </div>
+</div>
 </div>
 
 <script>
