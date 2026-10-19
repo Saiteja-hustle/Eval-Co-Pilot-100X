@@ -109,3 +109,31 @@ Rule: every choice goes here. "Tj decided" = Tj chose it. "AI decided" = Claude 
 - Third no-go line to be written by Tj.
 - Vercel Hobby duration vs. check_one's 20s timeout (see Stage 2 note above): confirm the real current limit on vercel.com, then decide whether to shorten the timeout (e.g. to 8–9s) or restructure vercel.json to set `maxDuration`.
 - checks.py / check_one was built now as part of this Stage 2 work, not in its own Stage 1 pass — Tj should review it as if Stage 1 just happened (run the 5 PRD test cases against Pratik's real app, per the PRD's own Stage 1 verify steps) before trusting it.
+
+## Stage 3: Saving to Supabase
+
+Tj decided
+- Did Stage 4 (the page) before Stage 3 because I wanted a link that works at least once, even before saving existed.
+- Row-level security (RLS) is ON for all three tables, with no policies yet. The server uses the secret key, which bypasses RLS. Policies come in Stage 6.
+- Keys live only in .env (git-ignored) and in Vercel env variables. The repo is public. Never paste a key in chat or in a prompt. If a key leaks, rotate it.
+- If saving to the database fails, the page still shows Pass or Fail. The response says "saved": false.
+
+What I learned (verified)
+- SUPABASE_URL must end at .supabase.co with no /rest/v1/ at the end.
+- The old legacy key gave a 401 even though it decoded as service_role. A role check does not prove a key works. Only a 200 from Supabase proves it.
+- I switched to the new sb_secret key. Local test and Vercel both use it.
+- A run saves 1 row in runs and 1 row in answers per question. Two runs of 3 questions gave 2 runs, 6 questions, 6 answers.
+- Live test on Vercel: 3 runs, 9 questions, 9 answers. Counts matched what I predicted.
+- GET /api/runs/<id> returns the run and its answers. Checked locally.
+
+Known limits (decided, not fixed)
+- Every Run saves its questions as new rows, so the same question is duplicated. This breaks matching by question_id across runs. To be fixed in Stage 5 (a Rerun reuses the question rows).
+- user_id is NULL on every row until login exists (Stage 6).
+- /docs and the routes are public.
+
+Not tested
+- Break test: wrong SUPABASE_URL, page should still show Pass or Fail with "saved": false.
+- Live read-back on Vercel (GET /api/runs/<id>) and the repo key search. I will check these myself.
+
+Open
+- Vercel max function duration (Settings, Functions) not checked yet.
