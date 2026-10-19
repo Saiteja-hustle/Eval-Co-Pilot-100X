@@ -24,6 +24,12 @@ Rule: every choice goes here. "Tj decided" = Tj chose it. "AI decided" = Claude 
 - Tabled: edited good answers are not snapshotted; Run 1 judged by the old text.
 - Field names and global wrong text stored on Run, fail reason stored on Answer.
 
+## AI decided — Stage 0
+- requirements.txt holds only fastapi and uvicorn (nothing else needed for a hello route).
+- vercel.json uses the `@vercel/python` builder pointed at main.py, routing every path to it — the minimal config for FastAPI on Vercel, nothing project-specific added.
+- .env.example lists SUPABASE_URL and SUPABASE_SERVICE_KEY with empty values only, per the no-real-keys rule.
+- Single main.py at repo root (no api/ folder) since Stage 0 is one route; can be reorganized later if a stage needs it.
+
 ## Open
 - Check-in 5 "Stored" Green criteria not yet read.
 - Third no-go line to be written by Tj.
