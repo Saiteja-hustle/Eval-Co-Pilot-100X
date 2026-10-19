@@ -22,3 +22,7 @@ Copy `.env.example` to `.env` and fill in real values (never commit `.env`):
 - `SUPABASE_SERVICE_KEY`
 
 These aren't used yet — they're placeholders for a later stage.
+
+## Stage 4: Screens
+
+Open http://127.0.0.1:8000/ for the setup + questions + report page (plain HTML/CSS/JS, no build step, no login, no database).

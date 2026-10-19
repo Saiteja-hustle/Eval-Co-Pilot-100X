@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eval Co-Pilot</title>
+<style>
+  :root { font-family: Arial, Helvetica, sans-serif; }
+  body {
+    margin: 0;
+    padding: 24px;
+    background: #f5f5f7;
+    color: #1d1d1f;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 16px; }
+  .card {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+  }
+  label { display: block; font-size: 13px; font-weight: bold; margin: 10px 0 4px; }
+  input[type=text] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px;
+    font-size: 14px;
+    border: 1px solid #bbb;
+    border-radius: 4px;
+  }
+  .setup-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 20px;
+  }
+  .row {
+    border: 1px solid #e3e3e6;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 10px;
+    position: relative;
+  }
+  .row .helper { color: #888; font-size: 12px; margin-top: 4px; }
+  .row .delete-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: none;
+    border: none;
+    color: #c00;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  button {
+    font-size: 14px;
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: 1px solid #bbb;
+    background: #fff;
+    cursor: pointer;
+  }
+  button.primary {
+    background: #0a66ff;
+    color: #fff;
+    border-color: #0a66ff;
+    font-weight: bold;
+  }
+  button:disabled { opacity: 0.6; cursor: default; }
+  .note { color: #666; font-size: 13px; margin-top: 8px; }
+  .status { margin: 12px 0; font-weight: bold; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  th, td { text-align: left; padding: 8px; border-bottom: 1px solid #eee; font-size: 14px; }
+  tr.report-row { cursor: pointer; }
+  tr.report-row:hover { background: #f0f4ff; }
+  .pass { color: #0a8a3a; font-weight: bold; }
+  .fail { color: #c00; font-weight: bold; }
+  #fullAnswer {
+    margin-top: 12px;
+    background: #fafafa;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 12px;
+    font-size: 13px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  #score { font-size: 16px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Eval Co-Pilot</h1>
+
+  <div class="card">
+    <div class="setup-grid">
+      <div>
+        <label for="appAddress">App address</label>
+        <input type="text" id="appAddress" placeholder="https://your-app.example.com/ask">
+      </div>
+      <div>
+        <label for="globalWrongText">If the answer says this, it's wrong</label>
+        <input type="text" id="globalWrongText" placeholder="e.g. I don't know">
+      </div>
+      <div>
+        <label for="questionField">Where the question goes (field name)</label>
+        <input type="text" id="questionField" value="question">
+      </div>
+      <div>
+        <label for="answerField">Where the answer comes back (field name)</label>
+        <input type="text" id="answerField" value="answer">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div id="rows"></div>
+    <button id="addRowBtn">+ Add question</button>
+    <div class="note">We recommend 10 questions. Fewer works too.</div>
+  </div>
+
+  <button class="primary" id="runBtn">Run</button>
+  <div class="status" id="statusMsg"></div>
+
+  <div class="card" id="reportCard" style="display:none;">
+    <table id="reportTable">
+      <thead>
+        <tr>
+          <th>Question</th>
+          <th>App's answer</th>
+          <th>Pass or Fail</th>
+          <th>Why it failed</th>
+        </tr>
+      </thead>
+      <tbody id="reportBody"></tbody>
+    </table>
+    <div id="fullAnswer" style="display:none;"></div>
+    <div id="score"></div>
+  </div>
+</div>
+
+<script>
+const rowsDiv = document.getElementById('rows');
+const addRowBtn = document.getElementById('addRowBtn');
+const runBtn = document.getElementById('runBtn');
+const statusMsg = document.getElementById('statusMsg');
+const reportCard = document.getElementById('reportCard');
+const reportBody = document.getElementById('reportBody');
+const fullAnswerDiv = document.getElementById('fullAnswer');
+const scoreDiv = document.getElementById('score');
+
+function addRow() {
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = `
+    <button class="delete-btn" type="button">Delete</button>
+    <label>What will your user ask?</label>
+    <input type="text" class="questionInput" placeholder="Type the question">
+    <label>A good answer includes:</label>
+    <input type="text" class="includesInput" placeholder="e.g. 42, warranty, 3 years">
+    <div class="helper">Separate with commas. All of them must appear.</div>
+  `;
+  row.querySelector('.delete-btn').addEventListener('click', () => row.remove());
+  rowsDiv.appendChild(row);
+}
+
+for (let i = 0; i < 3; i++) addRow();
+addRowBtn.addEventListener('click', addRow);
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+runBtn.addEventListener('click', async () => {
+  const appAddress = document.getElementById('appAddress').value.trim();
+  const questionField = document.getElementById('questionField').value.trim() || 'question';
+  const answerField = document.getElementById('answerField').value.trim() || 'answer';
+  const globalWrongText = document.getElementById('globalWrongText').value.trim();
+
+  const rowEls = Array.from(rowsDiv.querySelectorAll('.row'));
+  const items = rowEls
+    .map(row => ({
+      question: row.querySelector('.questionInput').value.trim(),
+      includes: row.querySelector('.includesInput').value.trim(),
+    }))
+    .filter(item => item.question);
+
+  if (items.length === 0) {
+    statusMsg.textContent = 'Add at least one question first.';
+    return;
+  }
+
+  runBtn.disabled = true;
+  reportCard.style.display = 'none';
+  fullAnswerDiv.style.display = 'none';
+  reportBody.innerHTML = '';
+  scoreDiv.textContent = '';
+
+  const results = [];
+  const total = items.length;
+
+  for (let i = 0; i < total; i++) {
+    statusMsg.textContent = `Running ${i + 1} of ${total}...`;
+    const item = items[i];
+    let result;
+    try {
+      const response = await fetch('/api/run-question', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: item.question,
+          app_address: appAddress,
+          question_field: questionField,
+          answer_field: answerField,
+          good_answer_includes: item.includes,
+          global_wrong_text: globalWrongText,
+        }),
+      });
+      if (!response.ok) {
+        result = { app_answer: '', pass_fail: 'Fail', fail_reason: 'app error' };
+      } else {
+        result = await response.json();
+      }
+    } catch (err) {
+      result = { app_answer: '', pass_fail: 'Fail', fail_reason: 'app error' };
+    }
+    results.push({ question: item.question, ...result });
+  }
+
+  statusMsg.textContent = `Done: ${total} of ${total} run.`;
+  runBtn.disabled = false;
+
+  let passCount = 0;
+  results.forEach((r, idx) => {
+    if (r.pass_fail === 'Pass') passCount++;
+    const answer = r.app_answer || '';
+    const shortAnswer = answer.length > 80 ? answer.slice(0, 80) + '...' : answer;
+    const tr = document.createElement('tr');
+    tr.className = 'report-row';
+    tr.innerHTML = `
+      <td>${escapeHtml(r.question)}</td>
+      <td>${escapeHtml(shortAnswer)}</td>
+      <td class="${r.pass_fail === 'Pass' ? 'pass' : 'fail'}">${escapeHtml(r.pass_fail)}</td>
+      <td>${escapeHtml(r.fail_reason || '')}</td>
+    `;
+    tr.addEventListener('click', () => {
+      fullAnswerDiv.style.display = 'block';
+      fullAnswerDiv.textContent = answer || '(no answer)';
+    });
+    reportBody.appendChild(tr);
+  });
+
+  scoreDiv.textContent = `${passCount} of ${total} passed`;
+  reportCard.style.display = 'block';
+});
+</script>
+</body>
+</html>
