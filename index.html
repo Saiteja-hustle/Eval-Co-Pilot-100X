@@ -147,6 +147,12 @@
   }
   .pass { color: var(--color-pass); background: rgba(31, 138, 76, 0.12); }
   .fail { color: var(--color-fail); background: rgba(199, 58, 58, 0.12); }
+  .fixed { color: var(--color-pass); background: rgba(31, 138, 76, 0.12); }
+  .broke { color: var(--color-fail); background: rgba(199, 58, 58, 0.12); }
+  .same { color: var(--color-text-muted); background: rgba(107, 111, 133, 0.12); }
+  .only { color: var(--color-text-muted); background: rgba(107, 111, 133, 0.12); }
+  #rerunBtn { display: none; margin: 14px auto 0; }
+  .fail-reason-sub { color: var(--color-text-muted); font-size: 12px; margin-top: 2px; }
   #fullAnswer {
     margin-top: 12px;
     background: var(--color-primary-tint);
@@ -202,6 +208,7 @@
 
   <button class="primary" id="runBtn">Run</button>
   <div class="status" id="statusMsg"></div>
+  <button id="rerunBtn" type="button">Edit questions and run again</button>
 
   <div class="card" id="reportCard" style="display:none;">
     <div class="table-scroll">
@@ -220,6 +227,23 @@
     <div id="fullAnswer" style="display:none;"></div>
     <div id="score"></div>
   </div>
+
+  <div class="card" id="compareCard" style="display:none;">
+    <div id="compareSummary" class="note" style="margin-top:0;"></div>
+    <div class="table-scroll">
+    <table id="compareTable">
+      <thead>
+        <tr>
+          <th>Question</th>
+          <th>Run 1</th>
+          <th>Run 2</th>
+          <th>Fixed / Broke / Same</th>
+        </tr>
+      </thead>
+      <tbody id="compareBody"></tbody>
+    </table>
+    </div>
+  </div>
 </div>
 </div>
 
@@ -232,6 +256,16 @@ const reportCard = document.getElementById('reportCard');
 const reportBody = document.getElementById('reportBody');
 const fullAnswerDiv = document.getElementById('fullAnswer');
 const scoreDiv = document.getElementById('score');
+const rerunBtn = document.getElementById('rerunBtn');
+const compareCard = document.getElementById('compareCard');
+const compareSummary = document.getElementById('compareSummary');
+const compareBody = document.getElementById('compareBody');
+
+// Stage 5 page memory: the run just completed, and the run before it
+// (set when "Edit questions and run again" is clicked), used to call
+// /api/compare once the next run finishes.
+let lastRunId = null;
+let baseRunId = null;
 
 function addRow() {
   const row = document.createElement('div');
@@ -266,8 +300,10 @@ runBtn.addEventListener('click', async () => {
   const rowEls = Array.from(rowsDiv.querySelectorAll('.row'));
   const items = rowEls
     .map(row => ({
+      row,
       question: row.querySelector('.questionInput').value.trim(),
       includes: row.querySelector('.includesInput').value.trim(),
+      questionId: row.dataset.questionId || null,
     }))
     .filter(item => item.question);
 
@@ -277,8 +313,10 @@ runBtn.addEventListener('click', async () => {
   }
 
   runBtn.disabled = true;
+  rerunBtn.style.display = 'none';
   reportCard.style.display = 'none';
   fullAnswerDiv.style.display = 'none';
+  compareCard.style.display = 'none';
   reportBody.innerHTML = '';
   scoreDiv.textContent = '';
 
@@ -320,6 +358,7 @@ runBtn.addEventListener('click', async () => {
           good_answer_includes: item.includes,
           global_wrong_text: globalWrongText,
           run_id: runId,
+          question_id: item.questionId,
         }),
       });
       if (!response.ok) {
@@ -329,6 +368,9 @@ runBtn.addEventListener('click', async () => {
       }
     } catch (err) {
       result = { app_answer: '', pass_fail: 'Fail', fail_reason: 'app error' };
+    }
+    if (result.question_id) {
+      item.row.dataset.questionId = result.question_id;
     }
     results.push({ question: item.question, ...result });
   }
@@ -358,7 +400,85 @@ runBtn.addEventListener('click', async () => {
 
   scoreDiv.textContent = `${passCount} of ${total} passed`;
   reportCard.style.display = 'block';
+
+  if (runId) {
+    rowsDiv.querySelectorAll('.questionInput, .includesInput').forEach(el => {
+      el.disabled = true;
+    });
+    rerunBtn.style.display = 'inline-block';
+    if (baseRunId) {
+      await loadCompare(baseRunId, runId);
+      baseRunId = null;
+    }
+    lastRunId = runId;
+  }
 });
+
+rerunBtn.addEventListener('click', () => {
+  rowsDiv.querySelectorAll('.questionInput, .includesInput').forEach(el => {
+    el.disabled = false;
+  });
+  rerunBtn.style.display = 'none';
+  baseRunId = lastRunId;
+  statusMsg.textContent = 'Edit your questions, then click Run.';
+});
+
+async function loadCompare(runA, runB) {
+  try {
+    const response = await fetch(`/api/compare?run_a=${encodeURIComponent(runA)}&run_b=${encodeURIComponent(runB)}`);
+    if (!response.ok) {
+      compareSummary.textContent = 'Could not load the comparison for this rerun.';
+      compareBody.innerHTML = '';
+      compareCard.style.display = 'block';
+      return;
+    }
+    const data = await response.json();
+    renderCompare(data);
+  } catch (err) {
+    compareSummary.textContent = 'Could not load the comparison for this rerun.';
+    compareBody.innerHTML = '';
+    compareCard.style.display = 'block';
+  }
+}
+
+function sideCell(side) {
+  if (!side) return '';
+  const pillClass = side.pass_fail === 'Pass' ? 'pass' : 'fail';
+  let html = `<span class="${pillClass}">${escapeHtml(side.pass_fail)}</span>`;
+  if (side.pass_fail === 'Fail' && side.fail_reason) {
+    html += `<div class="fail-reason-sub">${escapeHtml(side.fail_reason)}</div>`;
+  }
+  return html;
+}
+
+function statusClass(status) {
+  if (status === 'Fixed') return 'fixed';
+  if (status === 'Broke') return 'broke';
+  if (status === 'Same') return 'same';
+  return 'only';
+}
+
+function renderCompare(data) {
+  const s = data.summary;
+  compareSummary.textContent =
+    `Run 1: ${s.run_a_score.passed} of ${s.run_a_score.total} passed · ` +
+    `Run 2: ${s.run_b_score.passed} of ${s.run_b_score.total} passed · ` +
+    `Fixed: ${s.fixed}  Broke: ${s.broke}  Same: ${s.same}`;
+
+  compareBody.innerHTML = '';
+  data.rows.forEach(row => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(row.question_text)}</td>
+      <td>${sideCell(row.run_a)}</td>
+      <td>${sideCell(row.run_b)}</td>
+      <td><span class="${statusClass(row.status)}">${escapeHtml(row.status)}</span></td>
+    `;
+    compareBody.appendChild(tr);
+  });
+
+  compareCard.style.display = 'block';
+}
 </script>
 </body>
 </html>
