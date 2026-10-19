@@ -33,3 +33,9 @@ Rule: every choice goes here. "Tj decided" = Tj chose it. "AI decided" = Claude 
 ## Open
 - Check-in 5 "Stored" Green criteria not yet read.
 - Third no-go line to be written by Tj.
+
+## Tj decided: Stage 1
+- 12% fails on Pratik's app because his answer has a hidden special space between 12 and %. Plain 12 works. Known limit, not fixing tonight.
+- 3 would also match inside 300, because matching is a substring check. Known limit.
+- 20-second timeout and case-insensitive matching: accepted.
+- Stage 1 tested by hand in Python: 4 PRD cases pass; empty includes box returns a result; an app that returns a list gives Fail "app error" with no crash; "birch" in capitals passes.
