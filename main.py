@@ -1,9 +1,15 @@
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from checks import check_one
 
 app = FastAPI()
+
+
+@app.get("/")
+def home():
+    return FileResponse("index.html")
 
 
 @app.get("/api/hello")
