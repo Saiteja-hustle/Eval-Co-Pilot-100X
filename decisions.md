@@ -93,6 +93,13 @@ Rule: every choice goes here. "Tj decided" = Tj chose it. "AI decided" = Claude 
 - Removed the now-orphaned `h1 { ... }` CSS rule since the `<h1>` element itself was replaced by the new header (dead CSS otherwise).
 - Verified: div open/close tag counts balance (17/17), and both `main.py` and `checks.py` still `py_compile` cleanly (confirming no stray edits leaked into those files).
 
+## Tj decided: Stage 3
+- Built Stage 4 (the page) before Stage 3 (saving) because of the 9 PM deadline. Results were not saved until Stage 3.
+- Ran schema.sql with RLS enabled and no policies. The server uses the service_role key, which bypasses RLS, so saving works. Policies come in Stage 6. This changes the PRD line "no RLS yet".
+- Each Run saves its questions again as new rows, so the same question can appear twice in questions. Run 1's rows never change. Known limit.
+- After 3 questions I predicted 1 run, 3 questions, 3 answers. After a second Run: 2 runs, 6 questions, 6 answers (14 rows in total).
+- .env holds SUPABASE_URL (without /rest/v1/) and SUPABASE_SERVICE_KEY (a service_role key, 241 characters). It is ignored by git. The same two variables are set in Vercel for Production.
+
 ## Open
 - Check-in 5 "Stored" Green criteria not yet read.
 - Third no-go line to be written by Tj.
