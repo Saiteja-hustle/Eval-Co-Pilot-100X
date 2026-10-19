@@ -282,6 +282,25 @@ runBtn.addEventListener('click', async () => {
   reportBody.innerHTML = '';
   scoreDiv.textContent = '';
 
+  let runId = null;
+  try {
+    const runResponse = await fetch('/api/runs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        app_address: appAddress,
+        question_field: questionField,
+        answer_field: answerField,
+        global_wrong_text: globalWrongText,
+      }),
+    });
+    if (runResponse.ok) {
+      runId = (await runResponse.json()).id;
+    }
+  } catch (err) {
+    runId = null;
+  }
+
   const results = [];
   const total = items.length;
 
@@ -300,6 +319,7 @@ runBtn.addEventListener('click', async () => {
           answer_field: answerField,
           good_answer_includes: item.includes,
           global_wrong_text: globalWrongText,
+          run_id: runId,
         }),
       });
       if (!response.ok) {
