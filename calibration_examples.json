@@ -1,0 +1,32 @@
+[
+  {
+    "answer": "Project Birch - a fictional daylight project that specifies a daylight requirement of at least 12 % of each living-room floor area",
+    "item": "project name",
+    "expected_met": true
+  },
+  {
+    "answer": "Project Birch - a fictional daylight project that specifies a daylight requirement of at least 12 % of each living-room floor area",
+    "item": "a unicorn",
+    "expected_met": false
+  },
+  {
+    "answer": "Project Maple - BENG 1: maximum 60 kWh/m2 per year, BENG 2: maximum 35 kWh/m2 per year, BENG 3: minimum 45 % renewable energy share",
+    "item": "energy demand limit of 60 kWh",
+    "expected_met": true
+  },
+  {
+    "answer": "Project Maple - BENG 1: maximum 60 kWh/m2 per year, BENG 2: maximum 35 kWh/m2 per year, BENG 3: minimum 45 % renewable energy share",
+    "item": "energy demand limit of 50 kWh",
+    "expected_met": false
+  },
+  {
+    "answer": "Project Maple - BENG 1: maximum 60 kWh/m2 per year, BENG 2: maximum 35 kWh/m2 per year, BENG 3: minimum 45 % renewable energy share",
+    "item": "ventilation rate",
+    "expected_met": false
+  },
+  {
+    "answer": "No reliable answer found",
+    "item": "project name",
+    "expected_met": false
+  }
+]

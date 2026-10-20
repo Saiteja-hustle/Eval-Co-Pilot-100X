@@ -302,6 +302,7 @@
     <div id="rows"></div>
     <button id="addRowBtn">+ Add question</button>
     <div class="note">We recommend 10 questions. Fewer works too.</div>
+    <div class="note">If the exact words are not found, the app's answer text is sent to an AI (Groq) to check the meaning.</div>
   </div>
 
   <button class="primary" id="runBtn">Run</button>
@@ -520,7 +521,7 @@ function addRow() {
     <div class="help-box" id="${askHelpId}" hidden>A real question your users would type into your app. Pick questions where you already know the right answer.</div>
     <label>A good answer includes:<button type="button" class="help-btn" aria-label="Help" aria-expanded="false" aria-controls="${includesHelpId}">?</button></label>
     <input type="text" class="includesInput" placeholder="e.g. 42, warranty, 3 years">
-    <div class="help-box" id="${includesHelpId}" hidden>The words or numbers a correct answer must contain. Use facts: numbers, names, key terms (like 300, or refund, 30 days). Don't describe the answer (like explains clearly), because this tool checks exact words. All of them must appear. Capital letters don't matter. Tip: 12 is safer than 12%, because apps word percentages differently. A Pass means the facts are there, not that the whole answer is right.</div>
+    <div class="help-box" id="${includesHelpId}" hidden>Write exact words or numbers, or describe what the answer must say. We look for the exact words first, then check the meaning.</div>
     <div class="helper">Separate with commas. All of them must appear.</div>
   `;
   row.querySelector('.delete-btn').addEventListener('click', () => row.remove());
@@ -630,11 +631,14 @@ runBtn.addEventListener('click', async () => {
     const shortAnswer = answer.length > 80 ? answer.slice(0, 80) + '...' : answer;
     const tr = document.createElement('tr');
     tr.className = 'report-row';
+    const reasonHtml = r.match_note
+      ? `${escapeHtml(r.fail_reason || '')}<div class="fail-reason-sub">${escapeHtml(r.match_note)}</div>`
+      : escapeHtml(r.fail_reason || '');
     tr.innerHTML = `
       <td>${escapeHtml(r.question)}</td>
       <td>${escapeHtml(shortAnswer)}</td>
       <td class="${r.pass_fail === 'Pass' ? 'pass' : 'fail'}">${escapeHtml(r.pass_fail)}</td>
-      <td>${escapeHtml(r.fail_reason || '')}</td>
+      <td>${reasonHtml}</td>
     `;
     tr.addEventListener('click', () => {
       fullAnswerDiv.style.display = 'block';

@@ -1,4 +1,6 @@
+import json
 import os
+from datetime import date
 from typing import Optional
 
 from dotenv import load_dotenv
@@ -6,6 +8,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
+from ai_check import check_missing_with_ai, groq_llm_call
 from checks import check_one
 
 load_dotenv()
@@ -14,6 +17,84 @@ app = FastAPI()
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_PUBLISHABLE_KEY = os.environ.get("SUPABASE_PUBLISHABLE_KEY")
+
+MISSING_PREFIX = "missing: "
+
+# Per-user cap on AI-checked questions per day. Best effort, in memory only:
+# it resets whenever the server process restarts and is not shared across
+# multiple server instances.
+AI_CHECK_DAILY_LIMIT = 60
+_ai_check_counts = {}
+
+
+def _ai_check_disabled():
+    return (
+        os.environ.get("AI_CHECK_DISABLED") == "1"
+        or not os.environ.get("GROQ_API_KEY")
+        or not os.environ.get("GROQ_MODEL")
+    )
+
+
+def _ai_check_allowed(user_id):
+    today = date.today()
+    entry = _ai_check_counts.get(user_id)
+    if entry is None or entry["date"] != today:
+        entry = {"date": today, "count": 0}
+        _ai_check_counts[user_id] = entry
+    if entry["count"] >= AI_CHECK_DAILY_LIMIT:
+        return False
+    entry["count"] += 1
+    return True
+
+
+class _LLMCallErrorTracker:
+    """Wraps groq_llm_call so main.py can tell a real AI error (timeout,
+    exception, malformed JSON) apart from the AI cleanly saying "not met",
+    without changing check_missing_with_ai's pure, fixed return shape."""
+
+    def __init__(self, real_call):
+        self._real_call = real_call
+        self.errored = False
+
+    def __call__(self, *args, **kwargs):
+        try:
+            raw = self._real_call(*args, **kwargs)
+        except Exception:
+            self.errored = True
+            raise
+        try:
+            json.loads(raw)
+        except (TypeError, ValueError):
+            self.errored = True
+        return raw
+
+
+def _apply_ai_meaning_check(result, user_id):
+    """If check_one failed only because an "includes" word is missing, ask
+    the AI whether the answer says it another way, then re-verify in code.
+    Only ever upgrades Fail to Pass when the AI's quote is confirmed to
+    really appear in the answer."""
+    if result["pass_fail"] != "Fail":
+        return
+    if not result["fail_reason"].startswith(MISSING_PREFIX):
+        return
+    if not result["app_answer"]:
+        return
+    if _ai_check_disabled():
+        return
+    if not _ai_check_allowed(user_id):
+        return
+
+    missing_item = result["fail_reason"][len(MISSING_PREFIX):]
+    tracker = _LLMCallErrorTracker(groq_llm_call)
+    ai_result = check_missing_with_ai(result["app_answer"], [missing_item], tracker)
+
+    if ai_result["met"] and not ai_result["unmet"]:
+        result["pass_fail"] = "Pass"
+        result["fail_reason"] = ""
+        result["match_note"] = "matched by meaning: '{}'".format(ai_result["met"][0]["quote"])
+    elif tracker.errored:
+        result["fail_reason"] = f"{result['fail_reason']} (AI check unavailable)"
 
 
 class NotLoggedIn(Exception):
@@ -124,6 +205,8 @@ def run_question(body: RunQuestionRequest, user=Depends(get_current_user)):
         good_answer_includes=body.good_answer_includes,
         global_wrong_text=body.global_wrong_text,
     )
+
+    _apply_ai_meaning_check(result, user_id)
 
     if body.run_id:
         client = _client_for_token(token)
