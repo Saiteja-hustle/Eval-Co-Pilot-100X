@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <style>
   :root {
     --color-primary: #3B3F9E;
@@ -63,12 +64,51 @@
     background: #fff;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
   }
-  input[type=text]::placeholder { color: #9A9DB3; }
-  input[type=text]:focus {
+  input[type=text]::placeholder, input[type=password]::placeholder { color: #9A9DB3; }
+  input[type=text]:focus, input[type=password]:focus {
     outline: none;
     border-color: var(--color-primary);
     box-shadow: 0 0 0 3px rgba(59, 63, 158, 0.18);
   }
+  input[type=password] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--color-text);
+    border: 1px solid #CBCEDE;
+    border-radius: var(--radius-control);
+    background: #fff;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .auth-card { max-width: 360px; margin: 0 auto; }
+  .auth-actions { display: flex; gap: 10px; margin-top: 14px; }
+  .auth-actions button { flex: 1; }
+  .auth-error { color: var(--color-fail); font-size: 13px; margin-top: 10px; min-height: 16px; }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 880px;
+    margin: 0 auto 16px;
+    padding: 10px 16px;
+    background: #fff;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    font-size: 13px;
+    color: var(--color-text-muted);
+  }
+  .topbar #userEmailLabel { font-weight: 600; color: var(--color-text); }
+  #runIdLine { color: var(--color-text-muted); font-size: 12px; margin-top: 4px; }
+  #pastRunsList .past-run-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 14px;
+  }
+  #pastRunsList .past-run-row:last-child { border-bottom: none; }
   .setup-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -178,6 +218,24 @@
   <p class="brand">Eval Co-pilot</p>
   <p class="tagline">Test someone else's AI app with your own questions.</p>
 </header>
+
+<div class="card auth-card" id="authCard" style="display:none;">
+  <label for="authEmail">Email</label>
+  <input type="text" id="authEmail" placeholder="you@example.com" autocomplete="username">
+  <label for="authPassword">Password</label>
+  <input type="password" id="authPassword" placeholder="Your password" autocomplete="current-password">
+  <div class="auth-actions">
+    <button id="signUpBtn" type="button">Sign up</button>
+    <button id="logInBtn" type="button" class="primary" style="width:auto;">Log in</button>
+  </div>
+  <div class="auth-error" id="authError"></div>
+</div>
+
+<div id="appContent" style="display:none;">
+<div class="topbar" id="topBar">
+  <span>Signed in as <span id="userEmailLabel"></span></span>
+  <button id="logOutBtn" type="button">Log out</button>
+</div>
 <div class="wrap">
   <div class="card">
     <div class="setup-grid">
@@ -226,6 +284,7 @@
     </div>
     <div id="fullAnswer" style="display:none;"></div>
     <div id="score"></div>
+    <div id="runIdLine"></div>
   </div>
 
   <div class="card" id="compareCard" style="display:none;">
@@ -244,6 +303,12 @@
     </table>
     </div>
   </div>
+
+  <div class="card" id="pastRunsCard">
+    <label style="margin-top:0;">Your past runs</label>
+    <div id="pastRunsList"></div>
+  </div>
+</div>
 </div>
 </div>
 
@@ -260,12 +325,145 @@ const rerunBtn = document.getElementById('rerunBtn');
 const compareCard = document.getElementById('compareCard');
 const compareSummary = document.getElementById('compareSummary');
 const compareBody = document.getElementById('compareBody');
+const runIdLine = document.getElementById('runIdLine');
+const pastRunsList = document.getElementById('pastRunsList');
+
+const authCard = document.getElementById('authCard');
+const appContent = document.getElementById('appContent');
+const authEmail = document.getElementById('authEmail');
+const authPassword = document.getElementById('authPassword');
+const signUpBtn = document.getElementById('signUpBtn');
+const logInBtn = document.getElementById('logInBtn');
+const authError = document.getElementById('authError');
+const userEmailLabel = document.getElementById('userEmailLabel');
+const logOutBtn = document.getElementById('logOutBtn');
 
 // Stage 5 page memory: the run just completed, and the run before it
 // (set when "Edit questions and run again" is clicked), used to call
 // /api/compare once the next run finishes.
 let lastRunId = null;
 let baseRunId = null;
+
+// Stage 6: Supabase auth. supabaseClient is created once /api/config
+// returns the project's URL and publishable key; currentSession holds
+// the signed-in user's access token, sent as "Authorization: Bearer ..."
+// on every /api call.
+let supabaseClient = null;
+let currentSession = null;
+
+function authHeaders() {
+  return currentSession ? { 'Authorization': `Bearer ${currentSession.access_token}` } : {};
+}
+
+function showLoggedOut() {
+  authCard.style.display = 'block';
+  appContent.style.display = 'none';
+}
+
+function showLoggedIn(session) {
+  currentSession = session;
+  authCard.style.display = 'none';
+  appContent.style.display = 'block';
+  userEmailLabel.textContent = session.user.email;
+  loadPastRuns();
+}
+
+async function initAuth() {
+  let config;
+  try {
+    config = await (await fetch('/api/config')).json();
+  } catch (err) {
+    authError.textContent = 'Could not reach the server.';
+    showLoggedOut();
+    return;
+  }
+
+  if (!config.SUPABASE_URL || !config.SUPABASE_PUBLISHABLE_KEY) {
+    authError.textContent = 'The server is not configured for login yet.';
+    showLoggedOut();
+    return;
+  }
+
+  supabaseClient = supabase.createClient(config.SUPABASE_URL, config.SUPABASE_PUBLISHABLE_KEY);
+
+  const { data } = await supabaseClient.auth.getSession();
+  if (data.session) {
+    showLoggedIn(data.session);
+  } else {
+    currentSession = null;
+    showLoggedOut();
+  }
+
+  supabaseClient.auth.onAuthStateChange((_event, session) => {
+    if (session) {
+      showLoggedIn(session);
+    } else {
+      currentSession = null;
+      showLoggedOut();
+    }
+  });
+}
+
+signUpBtn.addEventListener('click', async () => {
+  authError.textContent = '';
+  const email = authEmail.value.trim();
+  const password = authPassword.value;
+  if (!email || !password) {
+    authError.textContent = 'Enter an email and a password first.';
+    return;
+  }
+  const { error } = await supabaseClient.auth.signUp({ email, password });
+  if (error) {
+    authError.textContent = error.message;
+  } else {
+    authError.textContent = 'Check your email to confirm, or log in if confirmation is off.';
+  }
+});
+
+logInBtn.addEventListener('click', async () => {
+  authError.textContent = '';
+  const email = authEmail.value.trim();
+  const password = authPassword.value;
+  if (!email || !password) {
+    authError.textContent = 'Enter an email and a password first.';
+    return;
+  }
+  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  if (error) {
+    authError.textContent = error.message;
+  }
+});
+
+logOutBtn.addEventListener('click', async () => {
+  await supabaseClient.auth.signOut();
+});
+
+async function loadPastRuns() {
+  try {
+    const response = await fetch('/api/runs', { headers: { ...authHeaders() } });
+    if (!response.ok) {
+      pastRunsList.textContent = 'No runs yet.';
+      return;
+    }
+    const runs = await response.json();
+    if (!runs.length) {
+      pastRunsList.textContent = 'No runs yet.';
+      return;
+    }
+    pastRunsList.innerHTML = '';
+    runs.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'past-run-row';
+      const date = new Date(r.created_at).toLocaleString();
+      row.innerHTML = `<span>${escapeHtml(date)}</span><span>${r.passed} of ${r.total} passed</span>`;
+      pastRunsList.appendChild(row);
+    });
+  } catch (err) {
+    pastRunsList.textContent = 'No runs yet.';
+  }
+}
+
+initAuth();
 
 function addRow() {
   const row = document.createElement('div');
@@ -324,7 +522,7 @@ runBtn.addEventListener('click', async () => {
   try {
     const runResponse = await fetch('/api/runs', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({
         app_address: appAddress,
         question_field: questionField,
@@ -349,7 +547,7 @@ runBtn.addEventListener('click', async () => {
     try {
       const response = await fetch('/api/run-question', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
           question: item.question,
           app_address: appAddress,
@@ -399,6 +597,7 @@ runBtn.addEventListener('click', async () => {
   });
 
   scoreDiv.textContent = `${passCount} of ${total} passed`;
+  runIdLine.textContent = runId ? `Run id: ${runId}` : '';
   reportCard.style.display = 'block';
 
   if (runId) {
@@ -406,6 +605,7 @@ runBtn.addEventListener('click', async () => {
       el.disabled = true;
     });
     rerunBtn.style.display = 'inline-block';
+    loadPastRuns();
     if (baseRunId) {
       await loadCompare(baseRunId, runId);
       baseRunId = null;
@@ -425,7 +625,9 @@ rerunBtn.addEventListener('click', () => {
 
 async function loadCompare(runA, runB) {
   try {
-    const response = await fetch(`/api/compare?run_a=${encodeURIComponent(runA)}&run_b=${encodeURIComponent(runB)}`);
+    const response = await fetch(`/api/compare?run_a=${encodeURIComponent(runA)}&run_b=${encodeURIComponent(runB)}`, {
+      headers: { ...authHeaders() },
+    });
     if (!response.ok) {
       compareSummary.textContent = 'Could not load the comparison for this rerun.';
       compareBody.innerHTML = '';
