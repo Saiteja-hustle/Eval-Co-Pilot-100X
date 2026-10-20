@@ -205,6 +205,42 @@
   }
   #score { font-size: 16px; font-weight: 600; margin-top: 14px; }
 
+  .help-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 17px;
+    height: 17px;
+    margin-left: 5px;
+    padding: 0;
+    border: 1px solid #CBCEDE;
+    border-radius: 50%;
+    background: #fff;
+    color: var(--color-text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    vertical-align: middle;
+    cursor: pointer;
+  }
+  .help-btn:hover, .help-btn[aria-expanded="true"] {
+    background: var(--color-primary-tint);
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+  }
+  .help-box {
+    background: var(--color-primary-tint);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    padding: 10px 12px;
+    margin: 4px 0 8px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--color-text-muted);
+    white-space: pre-wrap;
+  }
+  .help-box[hidden] { display: none; }
+
   @media (max-width: 600px) {
     .setup-grid { grid-template-columns: 1fr; }
     .card { padding: 16px; }
@@ -240,20 +276,24 @@
   <div class="card">
     <div class="setup-grid">
       <div>
-        <label for="appAddress">App address</label>
+        <label for="appAddress">App address<button type="button" class="help-btn" aria-label="Help" aria-expanded="false" aria-controls="appAddress-help">?</button></label>
         <input type="text" id="appAddress" placeholder="https://your-app.example.com/ask">
+        <div class="help-box" id="appAddress-help" hidden>The web address your app sends questions to, not the page you see. To find it: open your app, press Cmd+Option+I (Windows: Ctrl+Shift+I), click the Network tab, ask your app a question, click the request that appears (often named ask, chat or query), and copy the Request URL from the Headers tab. If your app needs a login, ask your builder for a test address. Apps that need a login can't be tested yet.</div>
       </div>
       <div>
-        <label for="globalWrongText">If the answer says this, it's wrong</label>
+        <label for="globalWrongText">If the answer says this, it's wrong<button type="button" class="help-btn" aria-label="Help" aria-expanded="false" aria-controls="globalWrongText-help">?</button></label>
         <input type="text" id="globalWrongText" placeholder="e.g. I don't know">
+        <div class="help-box" id="globalWrongText-help" hidden>Optional. A phrase that means the answer is bad, like I don't know or No reliable answer found. If an answer contains it, that question fails.</div>
       </div>
       <div>
-        <label for="questionField">Where the question goes (field name)</label>
+        <label for="questionField">Where the question goes (field name)<button type="button" class="help-btn" aria-label="Help" aria-expanded="false" aria-controls="questionField-help">?</button></label>
         <input type="text" id="questionField" value="question">
+        <div class="help-box" id="questionField-help" hidden>The name of the box your question goes in. In the same request, open the Payload tab. You'll see something like {"text": "your question"} or {"question": "..."}. The word before your question is the field name.</div>
       </div>
       <div>
-        <label for="answerField">Where the answer comes back (field name)</label>
+        <label for="answerField">Where the answer comes back (field name)<button type="button" class="help-btn" aria-label="Help" aria-expanded="false" aria-controls="answerField-help">?</button></label>
         <input type="text" id="answerField" value="answer">
+        <div class="help-box" id="answerField-help" hidden>The name of the box the answer comes back in. Open the Response tab. You'll see something like {"answer": "..."}. The word before the answer is the field name. If the reply is many lines, or the answer is a list instead of text, this tool can't read it yet.</div>
       </div>
     </div>
   </div>
@@ -465,15 +505,22 @@ async function loadPastRuns() {
 
 initAuth();
 
+let helpIdCounter = 0;
+
 function addRow() {
+  const id = ++helpIdCounter;
+  const askHelpId = `questionInput-help-${id}`;
+  const includesHelpId = `includesInput-help-${id}`;
   const row = document.createElement('div');
   row.className = 'row';
   row.innerHTML = `
     <button class="delete-btn" type="button">Delete</button>
-    <label>What will your user ask?</label>
+    <label>What will your user ask?<button type="button" class="help-btn" aria-label="Help" aria-expanded="false" aria-controls="${askHelpId}">?</button></label>
     <input type="text" class="questionInput" placeholder="Type the question">
-    <label>A good answer includes:</label>
+    <div class="help-box" id="${askHelpId}" hidden>A real question your users would type into your app. Pick questions where you already know the right answer.</div>
+    <label>A good answer includes:<button type="button" class="help-btn" aria-label="Help" aria-expanded="false" aria-controls="${includesHelpId}">?</button></label>
     <input type="text" class="includesInput" placeholder="e.g. 42, warranty, 3 years">
+    <div class="help-box" id="${includesHelpId}" hidden>The words or numbers a correct answer must contain. Use facts: numbers, names, key terms (like 300, or refund, 30 days). Don't describe the answer (like explains clearly), because this tool checks exact words. All of them must appear. Capital letters don't matter. Tip: 12 is safer than 12%, because apps word percentages differently. A Pass means the facts are there, not that the whole answer is right.</div>
     <div class="helper">Separate with commas. All of them must appear.</div>
   `;
   row.querySelector('.delete-btn').addEventListener('click', () => row.remove());
@@ -681,6 +728,30 @@ function renderCompare(data) {
 
   compareCard.style.display = 'block';
 }
+
+function closeAllHelp(exceptBox) {
+  document.querySelectorAll('.help-box').forEach(box => {
+    if (box === exceptBox) return;
+    box.hidden = true;
+    const btn = document.querySelector(`.help-btn[aria-controls="${box.id}"]`);
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+  });
+}
+
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.help-btn');
+  if (!btn) return;
+  const box = document.getElementById(btn.getAttribute('aria-controls'));
+  if (!box) return;
+  const wasOpen = !box.hidden;
+  closeAllHelp(box);
+  box.hidden = wasOpen;
+  btn.setAttribute('aria-expanded', wasOpen ? 'false' : 'true');
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeAllHelp(null);
+});
 </script>
 </body>
 </html>
